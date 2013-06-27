@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "Cat.h"
 
 @implementation AppDelegate
 
@@ -16,11 +17,106 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-    // Override point for customization after application launch.
-    self.window.backgroundColor = [UIColor whiteColor];
-    [self.window makeKeyAndVisible];
+    // *** 設定 ***
+    // 保存方法を指定
+    [MagicalRecord setupCoreDataStack];
+    
+    [self allDelete]; // 全データを消去
+    
+    // *** Default CoreData ***
+    
+    NSManagedObjectContext *context = [self managedObjectContext];
+    Cat *cat1 = [NSEntityDescription insertNewObjectForEntityForName:@"Cat" inManagedObjectContext:context];
+    cat1.name = @"mike";
+    cat1.age  = [NSNumber numberWithInt: 2];
+    Cat *cat2 = [NSEntityDescription insertNewObjectForEntityForName:@"Cat" inManagedObjectContext:context];
+    cat2.name = @"tama";
+    cat2.age  = [NSNumber numberWithInt: 5];
+    Cat* cat3 = [NSEntityDescription insertNewObjectForEntityForName:@"Cat" inManagedObjectContext:context];
+    cat3.name = @"tora";
+    cat3.age  = [NSNumber numberWithInt: 1];
+    
+    // update
+    NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+    NSEntityDescription *entity = [NSEntityDescription entityForName:@"Cat" inManagedObjectContext:context];
+    fetchRequest = [[NSFetchRequest alloc] init];
+    [fetchRequest setEntity:entity];
+    NSPredicate *predicate = [NSPredicate predicateWithFormat:@"name = 'tama'"];
+    [fetchRequest setPredicate:predicate];
+    NSError *error;
+    NSArray *fetchArr = [context executeFetchRequest:fetchRequest error:&error];
+    Cat *tama = [fetchArr objectAtIndex:0];
+    NSLog(@"tama age : %@", [tama age]);
+    tama.age = [NSNumber numberWithInt: 3];
+    
+    // delete
+    [fetchRequest setEntity:entity];
+    predicate = [NSPredicate predicateWithFormat:@"name = 'mike'"];
+    [fetchRequest setPredicate:predicate];
+    fetchArr = [context executeFetchRequest:fetchRequest error:&error];
+    Cat *mike = [fetchArr objectAtIndex:0];
+    [context deleteObject:mike];
+    
+    // save
+    error = nil;
+    if (![context save:&error]) {
+        NSLog(@"error = %@", error);
+    }
+    
+    // check
+    
+    fetchRequest = [[NSFetchRequest alloc]initWithEntityName:@"Cat"];
+    error = nil;
+    NSArray *all = [context executeFetchRequest:fetchRequest error:&error];
+    NSLog(@"all count : %d", [all count]);
+    NSLog(@"all : %@", all);
+    
+    [self allDelete]; // 全データを消去
+    
+    // *** MagicalRecord ***
+    
+    NSManagedObjectContext *magicalContext = [NSManagedObjectContext MR_defaultContext];
+    
+    // insert
+    Cat* magicalCat1 = [Cat MR_createEntity];
+    magicalCat1.name = @"mike";
+    magicalCat1.age  = [NSNumber numberWithInt: 2];
+    Cat* magicalCat2 = [Cat MR_createEntity];
+    magicalCat2.name = @"tama";
+    magicalCat2.age  = [NSNumber numberWithInt: 5];
+    Cat* magicalCat3 = [Cat MR_createEntity];
+    magicalCat3.name = @"tora";
+    magicalCat3.age  = [NSNumber numberWithInt: 1];
+    
+    // update
+    Cat *magicalTama = [Cat MR_findFirstWithPredicate:[NSPredicate predicateWithFormat:@"name = 'tama'"]];
+    NSLog(@"magicalTama age : %@", [magicalTama age]);
+    magicalTama.age = [NSNumber numberWithInt: 3];
+    
+    // delete
+    Cat *magicalMike = [Cat MR_findFirstWithPredicate:[NSPredicate predicateWithFormat:@"name = 'mike'"]];
+    [magicalMike MR_deleteEntity];
+    
+    // save
+    [magicalContext MR_saveOnlySelfAndWait];
+    
+    // check
+    
+    NSArray *magicalAll = [Cat MR_findAll];
+    
+    NSLog(@"magicalAll count : %d", [magicalAll count]);
+    NSLog(@"magicalAll : %@", magicalAll);
     return YES;
+}
+
+- (void) allDelete
+{
+    NSArray *all = [Cat MR_findAll];
+    int len = [all count];
+    for ( int i = 0 ; i < len ; i++ ) {
+        Cat *cat = [all objectAtIndex:i];
+        [cat MR_deleteEntity];
+    }
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
@@ -48,7 +144,7 @@
 - (void)applicationWillTerminate:(UIApplication *)application
 {
     // Saves changes in the application's managed object context before the application terminates.
-    [self saveContext];
+    [MagicalRecord cleanUp];
 }
 
 - (void)saveContext
